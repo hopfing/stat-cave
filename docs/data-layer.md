@@ -41,6 +41,7 @@ Conventions settled along the way:
 
 - **Layout:** `infra/` holds compose and per-service config; `scripts/` holds run-not-import scripts; code enters `src/stat_cave/` when it is imported by something; `docs/decisions/NNNN-<slug>.md` records each choice as chose / alternatives / why / revisit when.
 - **Raw lives in the store.** Source responses go into the `raw` bucket through the S3 API. Folders on `M:` are import sources and an offline backup, not the system of record.
+- **Layer names:** medallion, with a raw zone in front. `raw`: source responses as received, objects in the store. `bronze`: raw parsed into tables one-to-one (the source's own field names, fetch time, append-only). `silver`: cleaned, deduplicated, conformed tables and cross-source ids. `gold`: consumer-shaped joins and aggregates; feature engineering stays outside this repo. How bronze, silver and gold map onto buckets and catalog namespaces is settled with the catalog.
 - **Few buckets, many prefixes.** Each SeaweedFS bucket pre-allocates about seven 1 GB volumes; layers are buckets, everything else is a prefix.
 - **Clients:** explicit credentials and endpoint (never the default AWS credential chain), `region_name` set, path-style addressing, paginated listing.
 - **Tool choices:** a tool that is more than this repo needs is acceptable when the excess is only unnecessary, not when it is harmful (cost, run burden on the small machine, lock-in). Images must be multi-arch (one machine is arm64).
