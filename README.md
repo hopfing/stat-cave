@@ -4,4 +4,4 @@ Sports data capture and clean tables: fetching from each source, keeping raw res
 
 Start with `docs/data-layer.md`.
 
-Some tooling choices are intentionally larger than the data requires, to work with the stack a larger data operation might use in production; see `docs/decisions/0001-lakehouse-data-layer.md`.
+Some tooling choices are intentionally larger than the data requires, to work with the stack a larger data operation might use in production; see `docs/adr/0001-lakehouse-data-layer.md`.

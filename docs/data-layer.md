@@ -1,6 +1,6 @@
 # Data layer: state and plan
 
-Written 2026-11-10, last updated 2026-11-18. The data-layer work began in the `break-point` repo on 2026-11-07 and moved here on 2026-11-10. This file is the starting point for that work: what is built, how to run it, what is decided, and what comes next. Decisions with their alternatives are in `docs/decisions/`.
+Written 2026-11-10, last updated 2026-11-18. The data-layer work began in the `break-point` repo on 2026-11-07 and moved here on 2026-11-10. This file is the starting point for that work: what is built, how to run it, what is decided, and what comes next. Decisions with their alternatives are in `docs/adr/`.
 
 ## 1. What is built
 
@@ -44,13 +44,13 @@ Setting up and checking are separate steps. `setup_stack.py` creates what is mis
 
 | # | Decision | Where |
 |---|---|---|
-| 0001 | Lakehouse: object storage + Iceberg + REST catalog + Spark / Trino / DuckDB / PyIceberg; local Docker first, cloud twin later | `docs/decisions/0001-lakehouse-data-layer.md` |
-| 0002 | SeaweedFS as the local object store; named volume; capped at 500 x 1 GB volumes | `docs/decisions/0002-object-store.md` |
-| 0003 | Apache Polaris as the Iceberg REST catalog, backed by Postgres; the bring-up on this stack passed on 2026-11-18; Lakekeeper remains the alternative recorded in the decision | `docs/decisions/0003-iceberg-rest-catalog.md` |
+| 0001 | Lakehouse: object storage + Iceberg + REST catalog + Spark / Trino / DuckDB / PyIceberg; local Docker first, cloud twin later | `docs/adr/0001-lakehouse-data-layer.md` |
+| 0002 | SeaweedFS as the local object store; named volume; capped at 500 x 1 GB volumes | `docs/adr/0002-object-store.md` |
+| 0003 | Apache Polaris as the Iceberg REST catalog, backed by Postgres; the bring-up on this stack passed on 2026-11-18; Lakekeeper remains the alternative recorded in the decision | `docs/adr/0003-iceberg-rest-catalog.md` |
 
 Conventions settled along the way:
 
-- **Layout:** `infra/` holds compose and per-service config; `scripts/` holds run-not-import scripts; code enters `src/stat_cave/` when it is imported by something; `docs/decisions/NNNN-<slug>.md` records each choice as chose / alternatives / why / revisit when.
+- **Layout:** `infra/` holds compose and per-service config; `scripts/` holds run-not-import scripts; code enters `src/stat_cave/` when it is imported by something; `docs/adr/NNNN-<slug>.md` records each choice as chose / alternatives / why / revisit when.
 - **Raw lives in the store.** Source responses go into the `statcave-raw` bucket through the S3 API. The bucket is versioned, so an overwrite or a delete keeps the earlier bytes. Folders on `M:` are import sources and an offline backup, not the system of record.
 - **Layer names:** medallion, with a raw zone in front. `raw`: source responses as received, objects in the store. `bronze`: raw parsed into tables one-to-one (the source's own field names, fetch time, append-only). `silver`: cleaned, deduplicated, conformed tables and cross-source ids. `gold`: consumer-shaped joins and aggregates; feature engineering stays outside this repo.
 - **One bucket per layer, named as on AWS** (2026-11-12): `statcave-raw`, `statcave-bronze`, `statcave-silver`, `statcave-gold`, the same names as the AWS buckets in `us-east-2`. Iceberg metadata stores full `s3://bucket/key` paths, so a table moves between the local store and S3 without a path rewrite only when the bucket name is the same on both sides. Raw holds files as received and is not a table layer. Bronze, silver and gold are namespaces in one catalog, each created with its location set to its own bucket; the catalog's allowed locations list those three buckets and nothing else. Everything below a layer is a prefix: each SeaweedFS bucket pre-allocates about seven 1 GB volumes, so buckets are not added casually.
