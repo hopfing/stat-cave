@@ -2,11 +2,13 @@
 
 Date: 2026-11-12
 
-Status: chosen; the bring-up on this repo's stack has not run yet. If it
-fails, Lakekeeper is next and this entry is revised. The compose block and
-`scripts/setup_stack.py` ran on a throwaway project on 2026-11-12: every
-service came up, Polaris reported `healthy`, and tables read back after
-`docker compose down` and `up -d`.
+Status: chosen; brought up on this repo's stack on 2026-11-18, where all
+four bring-up checks passed: services healthy, table placement per layer
+bucket, tables read back after `docker compose down` and `up -d`, and
+every service back after a Docker Desktop restart. The same compose text
+and `scripts/setup_stack.py` first ran on a throwaway project on
+2026-11-12. Lakekeeper remains the fallback if the catalog has to be
+replaced.
 
 ## Chose
 Apache Polaris 1.8.0 (`apache/polaris`), with its metadata in Postgres
@@ -113,7 +115,7 @@ refuses a table location sent by the client.
 The steps are in `docs/data-layer.md`, section 7, item 6.
 
 ## Revisit when
-- The bring-up on this stack fails, or the probe fails after an upgrade.
+- The probe fails after an upgrade.
 - An upgrade removes `namespace-custom-location.enabled`: move to one
   catalog per layer, by the tested steps.
 - A load needs several tables to change together: test a crash

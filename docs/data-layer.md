@@ -1,30 +1,31 @@
 # Data layer: state and plan
 
-Written 2026-11-10, last updated 2026-11-12. The data-layer work began in the `break-point` repo on 2026-11-07 and moved here on 2026-11-10. This file is the starting point for that work: what is built, how to run it, what is decided, and what comes next. Decisions with their alternatives are in `docs/decisions/`.
+Written 2026-11-10, last updated 2026-11-18. The data-layer work began in the `break-point` repo on 2026-11-07 and moved here on 2026-11-10. This file is the starting point for that work: what is built, how to run it, what is decided, and what comes next. Decisions with their alternatives are in `docs/decisions/`.
 
 ## 1. What is built
 
-| Piece | State | Checked 2026-11-10 |
+| Piece | State | Checked |
 |---|---|---|
-| Python tooling: uv, Python 3.13, ruff, pyright, pytest, hypothesis, pre-commit config, CI workflow | in place | `ruff check` passed; `ruff format --check` clean; `pyright` 0 errors; `pytest` 1 passed |
-| Object store: SeaweedFS 4.52 in Docker (`infra/docker-compose.yml`, compose project `stat-cave`) | running | container `stat-cave-seaweedfs-1` up; S3 endpoint answers (403 without credentials, as it should) |
+| Python tooling: uv, Python 3.13, ruff, pyright, pytest, hypothesis, pre-commit config, CI workflow | in place | 2026-11-10: `ruff check` passed; `ruff format --check` clean; `pyright` 0 errors; `pytest` 1 passed |
+| Object store: SeaweedFS 4.52 in Docker (`infra/docker-compose.yml`, compose project `stat-cave`) | running | 2026-11-10: container `stat-cave-seaweedfs-1` up; S3 endpoint answers (403 without credentials, as it should) |
 | Store data: named volume `stat-cave_seaweed-data`, inside Docker Desktop's disk image on `M:\docker` | in place | 2026-11-12: master reports Max 500, Free 486 volumes |
-| Buckets `statcave-raw`, `statcave-bronze`, `statcave-silver`, `statcave-gold` | created 2026-11-12 (the first bucket, `raw`, was renamed) | `statcave-raw` has versioning enabled and holds one object, `_smoke/hello.txt`; the other three are empty |
-| `scripts/setup_stack.py` | written; not yet run on this stack (no catalog here yet) | 2026-11-12, throwaway stacks: on an empty store the first run created the four buckets, versioning on `statcave-raw`, the catalog `statcave`, its grant and the three layer namespaces; a rerun reported all of them as existing and changed nothing; with a catalog property altered it stopped and named the difference |
-| `scripts/s3_smoke.py` | passes; checks only | 2026-11-12, this store: four buckets present, versioning `Enabled` on `statcave-raw`, object written with a version id, read back identical. On throwaway stores it failed, as it should, with the buckets missing and with versioning suspended |
+| Buckets `statcave-raw`, `statcave-bronze`, `statcave-silver`, `statcave-gold` | created 2026-11-12 (the first bucket, `raw`, was renamed) | `statcave-raw` has versioning enabled and holds one object, `_smoke/hello.txt`; the other three are empty. On 2026-11-18, after the catalog bring-up checks, the three layer buckets are empty again |
+| Catalog: Polaris 1.8.0 on Postgres 17.11; compose services `polaris-db`, `polaris-bootstrap` (run once) and `polaris`, named volume `stat-cave_polaris-db` | running | 2026-11-18, four bring-up checks passed (section 7, item 1): services up, `polaris-db` and `polaris` `healthy`, `polaris` about 9 seconds after start; three tables created with no location landed in their layer's bucket only; tables read back after `docker compose down` and `up -d`; `seaweedfs`, `polaris-db` and `polaris` came back after a Docker Desktop restart with no `up`. Memory afterwards: Polaris 328 MiB of its 768 MiB limit, Postgres 47 MiB, SeaweedFS 190 MiB |
+| `scripts/setup_stack.py` | has run on this stack (2026-11-18) | 2026-11-12, throwaway stacks: on an empty store the first run created the four buckets, versioning on `statcave-raw`, the catalog `statcave`, its grant and the three layer namespaces; a rerun reported all of them as existing and changed nothing; with a catalog property altered it stopped and named the difference. 2026-11-18, this stack: the four buckets and the versioning on `statcave-raw` already existed; it created the catalog `statcave`, its grant and the namespaces `bronze`, `silver`, `gold`; a second run reported everything as existing and changed nothing |
+| `scripts/s3_smoke.py` | passes; checks only | 2026-11-12, this store: four buckets present, versioning `Enabled` on `statcave-raw`, object written with a version id, read back identical. On throwaway stores it failed, as it should, with the buckets missing and with versioning suspended. It passed again on 2026-11-18, including after the Docker Desktop restart |
 | `scripts/catalog_probe.py` | not yet adapted | ran 2026-11-11 against throwaway containers (12 of 12 steps on Polaris and on Lakekeeper); to be pointed at this stack once the catalog is up, then rerun after catalog upgrades. When adapted it works only inside its own namespace (`bronze._probe`), drops only the tables it created in that run, and never purges |
 | Docker volume guard: `.claude/settings.json`, `.claude/hooks/docker_guard.py`, `tests/test_docker_guard.py` | in place | 2026-11-12: `pytest` 44 passed (24 refused forms, 17 allowed, exit codes); a live `docker volume rm` from the assistant's Bash and PowerShell tools was refused |
 
-Not built: the catalog, any engine, any fetcher, any table.
+Not built: any engine, any fetcher, any table.
 
-The store had stopped after a reboot on 2026-11-12 because the service had no restart policy; data in the volume was intact. Every service gets `restart: unless-stopped` (pending in the compose file).
+The store had stopped after a reboot on 2026-11-12 because the service had no restart policy; data in the volume was intact. Every long-running service now has `restart: unless-stopped`, and a Docker Desktop restart on 2026-11-18 brought all three back without an `up`.
 
 ## 2. How to run it
 
 From `infra/`:
 
     docker compose config --quiet    # validate; prints nothing when the file is good
-    docker compose up -d             # start the store
+    docker compose up -d             # start the store and the catalog
     docker compose ps                # state
 
 From the repo root:
@@ -36,6 +37,7 @@ Setting up and checking are separate steps. `setup_stack.py` creates what is mis
 
 - S3 API from the host: `http://localhost:8333`. From another container on the compose network: `http://seaweedfs:8333`.
 - Master status: `http://localhost:9333` (JSON at `/dir/status`).
+- Catalog: from the host `http://localhost:8181`; from another container on the compose network `http://polaris:8181`. The health endpoint is on the management port 8182, which is not published.
 - `infra/.env` holds `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_ENDPOINT`, and for the catalog `POLARIS_DB_PASSWORD`, `POLARIS_CLIENT_ID`, `POLARIS_CLIENT_SECRET`, `POLARIS_ENDPOINT`. It is gitignored. `infra/.env.example` carries every key, with placeholders for the secrets. `docker compose config` without `--quiet` prints the secrets.
 
 ## 3. Decided
@@ -44,7 +46,7 @@ Setting up and checking are separate steps. `setup_stack.py` creates what is mis
 |---|---|---|
 | 0001 | Lakehouse: object storage + Iceberg + REST catalog + Spark / Trino / DuckDB / PyIceberg; local Docker first, cloud twin later | `docs/decisions/0001-lakehouse-data-layer.md` |
 | 0002 | SeaweedFS as the local object store; named volume; capped at 500 x 1 GB volumes | `docs/decisions/0002-object-store.md` |
-| 0003 | Apache Polaris as the Iceberg REST catalog, backed by Postgres; Lakekeeper is the fallback if the bring-up fails | `docs/decisions/0003-iceberg-rest-catalog.md` |
+| 0003 | Apache Polaris as the Iceberg REST catalog, backed by Postgres; the bring-up on this stack passed on 2026-11-18; Lakekeeper remains the alternative recorded in the decision | `docs/decisions/0003-iceberg-rest-catalog.md` |
 
 Conventions settled along the way:
 
@@ -65,7 +67,7 @@ In this order, one unit at a time:
 
 | Unit | What it is for | Open choice |
 |---|---|---|
-| Iceberg REST catalog | the one place that knows each table's current metadata file; what makes commits atomic across engines | chosen 2026-11-12: Apache Polaris 1.8.0 with Postgres (decision 0003), one catalog named `statcave`. The compose block ran on a throwaway project on 2026-11-12 (different project name, host ports and secrets; otherwise the same text). Bring-up on this stack is pending; if it fails, Lakekeeper is next |
+| Iceberg REST catalog | the one place that knows each table's current metadata file; what makes commits atomic across engines | chosen 2026-11-12: Apache Polaris 1.8.0 with Postgres (decision 0003), one catalog named `statcave`. The compose block ran on a throwaway project on 2026-11-12 (different project name, host ports and secrets; otherwise the same text). Up on this stack since 2026-11-18; all four checks in section 7, item 1 passed |
 | Spark | loads and `MERGE INTO`; runs in a container, driven from host Python over Spark Connect | image and version |
 | Trino | interactive SQL over the same tables | image and version |
 | DuckDB, PyIceberg | in-process reads and small appends from Python | none; `uv add` |
@@ -97,13 +99,13 @@ Each unit of work goes: write, validate, run, check, record (decision entry wher
 
 ## 7. Open
 
-1. The catalog bring-up (section 4): compose services, `setup_stack.py`, and these checks, each with output to show:
-   - every service is up, and `polaris` and `polaris-db` report `healthy`;
-   - a table created without an explicit location lands only in its layer's bucket;
-   - restart: create a table, `docker compose down` (without `-v`), `docker compose up -d`, read the table back;
-   - restart Docker Desktop and confirm every service comes back without a hand-run `up`.
+1. Done 2026-11-18: the catalog bring-up (section 4): compose services, `setup_stack.py`, and these checks, each with output to show:
+   - every service is up, and `polaris` and `polaris-db` report `healthy` (passed: `polaris-db` healthy, `polaris-bootstrap` exited 0, `polaris` healthy about 9 seconds after start, `seaweedfs` running);
+   - a table created without an explicit location lands only in its layer's bucket (passed: three tables created with PyIceberg 0.12.0 at `<layer>._probe.check` landed at `s3://statcave-<layer>/_probe/check`; each layer bucket held 5 objects, all under `_probe/check/`, and `statcave-raw` held none under `_probe/`);
+   - restart: create a table, `docker compose down` (without `-v`), `docker compose up -d`, read the table back (passed: both named volumes kept; `polaris-bootstrap` reported the realm already bootstrapped and skipped; all three tables read back with 2 rows and the same metadata file as before);
+   - restart Docker Desktop and confirm every service comes back without a hand-run `up` (passed: `seaweedfs`, `polaris-db` and `polaris` came back on their own, restart count 0; the tables read back and `s3_smoke.py` passed).
 
-   The first three passed on a throwaway project on 2026-11-12. The Docker Desktop restart has not been tried anywhere.
+   The same compose text and `setup_stack.py` had first run on a throwaway project on 2026-11-12. `polaris-bootstrap` does not run again after a Docker Desktop restart, because the Docker engine restarts containers by their restart policy and does not go through compose; that is harmless, since the bootstrap is needed once per Postgres volume. Cleanup: the three check tables and the `_probe` namespaces were removed. Polaris refuses a drop with purge unless `DROP_WITH_PURGE_ENABLED` is set (403), so the tables were dropped without purge and their 15 objects deleted through the S3 API. The catalog now holds the three layer namespaces and no tables; `statcave-bronze`, `statcave-silver` and `statcave-gold` are empty, and `statcave-raw` holds only `_smoke/hello.txt`. PyIceberg and pyarrow were run with `uv run --with`; they are still not project dependencies.
 2. Backup, to be set up before the first real load: `statcave-raw` synced to the `statcave-raw` bucket on AWS, and a `pg_dump` of the catalog's Postgres (`stat-cave_polaris-db`). The Postgres volume holds every table's pointer to its current metadata file; without it the data files are still in the store, but which metadata file is current for each table has to be worked out and re-registered by hand. A Docker Desktop reset wipes both named volumes; until the backup exists, raw is also kept as files on `M:`.
 3. The 500-volume cap is a first number; revisit after the first large load.
 4. Whether the store is ever needed from the other machines while the PC hosts it, and how the 16 GB Linux box is served.
