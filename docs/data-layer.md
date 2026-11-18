@@ -63,7 +63,7 @@ Conventions settled along the way:
 
 ## 4. Stack still to stand up
 
-In this order, one unit at a time:
+One unit at a time. Order agreed 2026-11-18: PyIceberg comes directly after the catalog and build 1 (section 5) starts with it; Spark arrives at the incremental-merge step, then Trino and DuckDB. The table below is still in the earlier order.
 
 | Unit | What it is for | Open choice |
 |---|---|---|
