@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --no-project --quiet python \"$CLAUDE_PROJECT_DIR/.claude/hooks/docker_guard.py\" || exit 2",
+            "timeout": 15,
+            "statusMessage": "Docker volume guard"
+          }
+        ]
+      }
+    ]
+  }
+}
